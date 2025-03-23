@@ -17,7 +17,7 @@ This project helps employees enhance their proactiveness in searching for work-r
 - `git clone https://github.com/duy-jack-1995/chatbox-project-fastapi.git`
 
 2 - Run commands - locally:
-- Copy file `.env.template` -> `.env` and replace chatGPT API Key into it
+- Copy file `.env_example` -> `.env` and replace chatGPT API Key into it
 - create `.npmrc` file inside chatbox-ui folder and add the following line:
 - `>>> cd /chatbox-project-fastapi`
 - `>>> docker-compose up --build`
@@ -38,7 +38,7 @@ This project helps employees enhance their proactiveness in searching for work-r
           - Name: `User`
           - Schema: `public`
           - Tablespace: `pg_default`
-          - Columns: `id`, `username`, `password`, `role`, `created_at`, `updated_at`
+          - Columns: `id`, `username`, `password`, `role` (type: text)
 - Create a new user in PgAdmin:
   - User: `chatbox`
   - Password: `chatbox`

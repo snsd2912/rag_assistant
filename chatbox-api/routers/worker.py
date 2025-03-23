@@ -18,6 +18,9 @@ from langchain_postgres import PGVector
 from langchain_postgres.vectorstores import PGVector
 import os
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+import pandas as pd
+from langchain.schema import SystemMessage, HumanMessage
+
 
 CONNECTION_STRING = os.getenv("VECTOR_DB_URL")
 
@@ -42,10 +45,8 @@ embeddings = OpenAIEmbeddings(
 )
 
 # Global vector_store
-vector_store = None
-
-UPLOAD_DIR = Path("./data_warehouse")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+finance_db = None
+hr_db = None
 
 def load_docx(file_path):
     """
@@ -60,7 +61,7 @@ def load_docx(file_path):
     # Return as a list of LangChain Document objects
     return [Document(page_content="\n".join(content), metadata={"source": str(file_path)})]
 
-def load_and_embed_pdfs_and_docs(folder):
+def load_and_embed_pdfs_and_docs(vector_store, folder, collection_name):
     """
     Load PDFs and DOCX files from a folder and create embeddings.
     """
@@ -76,72 +77,70 @@ def load_and_embed_pdfs_and_docs(folder):
     for docx_file in docx_files:
         documents = load_docx(str(docx_file))
         docs.extend(documents)
+    
+    csv_files = Path(folder).glob("*.csv")
+    # for csv_file in csv_files:
+    #     df = pd.read_csv(csv_file)
+        
+    #     for _, row in df.iterrows():
+    #         content = " | ".join(map(str, row.values))
+    #         docs.append(Document(page_content=content))
+    
+    for csv_file in csv_files:
+        df = pd.read_csv(csv_file)
+        content = df.to_csv(index=False)
+        
+        docs.append(Document(page_content=content, metadata={"source": str(csv_file)}))
 
     text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 
     split_docs = text_splitter.split_documents(docs)
 
-    global vector_store
     if vector_store is None:
         vector_store = PGVector.from_documents(
             documents=split_docs,
             embedding=embeddings,
-            collection_name="vectorstore",
+            collection_name=collection_name,
             connection=CONNECTION_STRING,
             use_jsonb=True,
         )
-        # vector_store = FAISS.from_documents(split_docs, embeddings)
     else:
         vector_store.add_documents(split_docs)
 
     return vector_store
 
-def find_closest_pdf(prompt, vector_store):
-    """
-    Search for the closest PDF to a user's prompt.
-    """
-    result = vector_store.similarity_search(prompt, k=1)
-    return result[0] if result else None
 
-def summarize_pdf_with_gpt4o(text, detected_language):
-    """
-    Summarize a PDF's content using Azure OpenAI (gpt-4o-mini).
-    """
-    prompt = ChatPromptTemplate.from_template("""
-            You are a helpful assistant. Please summarize the main points of the following document and translate to language {language} you can detect:
 
-            {content}
+def classify_with_llm(question):
+    prompt = [
+        SystemMessage(content="You are an AI assistant that classifies questions into 'HR' or 'Finance'."),
+        HumanMessage(content=f"Question: {question}\nCategory:")
+    ]
+    response = chat_model.invoke(prompt).content.strip()
+    return "HR" if "HR" in response else "Finance"
 
-            Provide a clear and concise summary as Bullet points with language {language}. Only get translate version.
-        """)
-    
-    content_chain = prompt | chat_model
-
-    response = content_chain.invoke({"content": text, "language": detected_language})
-    
-    return response.content
-
-def process_user_prompt(prompt, pdf_folder, detected_language):
-    """
-    Full pipeline: find the closest PDF, extract content, and summarize.
-    """
-    # Load PDFs and create embeddings
-    global vector_store
-
-    # Find the closest PDF
-    closest_pdf = find_closest_pdf(prompt, vector_store)
-
-    if closest_pdf:
-        pdf_content = closest_pdf.page_content
-        summary = summarize_pdf_with_gpt4o(pdf_content, detected_language)
-        return {
-            "closest_pdf": closest_pdf.metadata['source'],
-            "summary": summary
-        }
+def retrieve_answer(question, category):    
+    if category == "HR":
+        results = hr_db.similarity_search(question, k=1)
     else:
-        return {
-            "error": "We still collecting the documents relate your question."
-        }
+        results = finance_db.similarity_search(question, k=1)
+    
+    return results[0] if results else None
+
+def generate_answer(relevant_doc, question, category):
+    print(relevant_doc)
+    if category == "HR":
+        system_message = "You are an HR assistant. Use the following context to answer the question."
+    else:
+        system_message = "You are an Finance assistant. Use the following context to answer the question."
+    
+    prompt = [
+            SystemMessage(content=system_message),
+            HumanMessage(content=f"Context: {relevant_doc.page_content}\n\nQuestion: {question}\nAnswer:")
+        ]
+    
+    response = chat_model.invoke(prompt).content
+    return response
 
 @router.post("/ask")
 async def ask_question(payload: Question):
@@ -153,108 +152,20 @@ async def ask_question(payload: Question):
 
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    category = classify_with_llm(question)
+    relevant_doc = retrieve_answer(question, category)
 
-    detected_language = detect(question)
-
-    if detected_language != "vi":
-        detected_language = "en"
-
-    file_names = [file.name for file in UPLOAD_DIR.iterdir() if file.is_file()]
-
-    prompt = ChatPromptTemplate.from_template("""
-               Bạn là một người hỗ trợ tuyệt vời, tôi có một danh sách các file bên dưới:
-
-               {folders}
-
-               Hãy tìm cho tôi file có tên mà có khả năng xuất hiện trong câu hỏi. Đây là câu hỏi:
-               
-               {question}
-               
-               Nếu không có file có tên thích hợp câu trả lời của bạn chỉ là:No
-               
-           """)
-
-    content_chain = prompt | chat_model
-    response = content_chain.invoke({"folders": file_names, "question": question})
-    print(f"response.content= {response.content}")
-    if response.content == "No":
-        if detected_language != "vi":
-            return {"summary": "We still collecting data for your question."}
-        return {"summary": "chúng tôi vẫn đang tập hợp giữ liệu cho câu hỏi của bạn."}
-    result = process_user_prompt(question, pdf_folder, detected_language)
+    if relevant_doc is None:
+        return {"summary": "We still collecting data for your question."}
+    
+    result = generate_answer(relevant_doc, question, category)
 
     if not result:
         raise HTTPException(status_code=404, detail="No relevant document found.")
 
-    if "error" in result:
-        return {
-            "summary": result["error"]
-        }
-
-    if detected_language != "vi":
-        answer = " You can refer steps:\n " + result["summary"]
-    else:
-        answer = " Bạn có thể tham khảo các bước sau:\n " + result["summary"]
     return {
-        "closest_pdf": result["closest_pdf"],
-        "summary": answer
+        "summary": result
     }
-
-def update_vector_store_with_file(file_path):
-    """
-    Update the vector_store with a newly uploaded file.
-    """
-    global vector_store
-    file_extension = file_path.suffix.lower()
-    if file_extension == ".pdf":
-        loader = PyPDFLoader(str(file_path))
-        documents = loader.load()
-    elif file_extension == ".docx":
-        documents = load_docx(str(file_path))
-    else:
-        raise ValueError("Unsupported file type.")
-
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    split_docs = text_splitter.split_documents(documents)
-
-    if vector_store is None:
-        vector_store = PGVector.from_documents(
-            documents=split_docs,
-            embedding=embeddings,
-            collection_name="vectorstore",
-            connection=CONNECTION_STRING,
-            use_jsonb=True,
-        )
-        # vector_store = FAISS.from_documents(split_docs, embeddings)
-    else:
-        vector_store.add_documents(split_docs)
-
-@router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """
-    Endpoint to upload a file and update the vector_store.
-    """
-    file_extension = file.filename.split('.')[-1]
-    if file_extension not in ["pdf", "docx"]:
-        return {"error": "File type not allowed. Only .pdf and .docx are supported."}
-
-    file_path = UPLOAD_DIR / file.filename
-
-    if file_path.exists():
-        return {"error": f"File {file.filename} already exists."}
-
-    with open(file_path, "wb") as f:
-        f.write(await file.read())
-
-    try:
-        process = multiprocessing.Process(target=update_vector_store_with_file(file_path))
-        process.start()
-        update_vector_store_with_file(file_path)
-    except Exception as e:
-        return {"error": f"Failed to update vector store: {str(e)}"}
-
-    return {"message": f"{file.filename} File uploaded successfully!"}
-
 
 async def stream_lines(data):
     lines = data.split("\n")
@@ -267,7 +178,8 @@ async def initialize_vector_store():
     """
     Load the vector_store during app startup.
     """
-    global vector_store
-    folder = "./data_warehouse"
-    vector_store = load_and_embed_pdfs_and_docs(folder)
+    global finance_db
+    global hr_db
+    finance_db = load_and_embed_pdfs_and_docs(finance_db, "./data_warehouse/finance", "finance")
+    hr_db = load_and_embed_pdfs_and_docs(hr_db, "./data_warehouse/hr", "hr")
     print("Vector store initialized!")

@@ -18,3 +18,4 @@ psycopg
 psycopg-binary
 langchain-google-genai
 langchain-openai
+pandas
