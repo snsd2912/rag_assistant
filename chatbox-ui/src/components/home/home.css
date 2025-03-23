@@ -1,0 +1,177 @@
+/* Home.css */
+.home-container {
+  padding: 20px;
+  animation: fadeIn 1s ease-in-out;
+}
+
+.header {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: end;
+  align-items: center;
+}
+
+.chat-container {
+  display: flex;
+}
+
+.flex-1 {
+  flex-grow: 1;
+}
+
+.flex-2 {
+  flex-grow: 2;
+}
+
+.username {
+  margin-right: 10px;
+  font-size: 16px;
+  color: #555;
+}
+
+.logout-button {
+  padding: 5px 10px;
+  font-size: 14px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.logout-button:hover {
+  background-color: #d32f2f;
+}
+
+.question-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  flex: 1;
+}
+
+.submit-button {
+  padding: 8px 15px;
+  font-size: 14px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.3s, background-color 0.3s;
+}
+
+.submit-button:hover {
+  background-color: #0056b3;
+  transform: scale(0.95);
+}
+
+.answer-container {
+  margin-top: 20px;
+}
+
+.previous-question-container {
+  height: calc(100% - 60px);
+  overflow: auto;
+  margin-bottom: 20px;
+}
+
+.question-item,
+.answer-item {
+  width: inherit;
+  margin-bottom: .5rem;
+  padding: 0.75rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #ddd;
+  border-radius: 1rem;
+  width: fit-content;
+  white-space: pre-line;
+}
+
+.question-item {
+  text-align: right;
+  /* float: right; */
+  margin-left: auto;
+}
+
+.answer-item {
+  text-align: left;
+}
+
+.previous-question {
+  margin-bottom: 10px;
+  font-style: italic;
+  width: 100%;
+}
+
+.question-content {
+  display: flex;
+  gap: 1rem;
+  /* flex-direction: column; */
+  text-align: 'left';
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.question-container {
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: .5rem;
+  width: 50%;
+  height: calc(100vh - 100px);
+}
+
+.text_left {
+  text-align: left !important;
+}
+
+.spinner {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.2);
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 10px auto;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.upload-button {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.upload-loading{
+  width: 100%;
+  height: 100%;
+}
+

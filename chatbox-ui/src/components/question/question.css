@@ -1,0 +1,29 @@
+.question-container {
+  text-align: left;
+  margin: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.question-container h1 {
+  color: #34495e;
+}
+
+.question-container input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.question-container button {
+  padding: 10px 20px;
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.question-container button:hover {
+  background-color: #2ecc71;
+}
